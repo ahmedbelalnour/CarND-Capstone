@@ -1,0 +1,5 @@
+git push origin master
+git remote -v
+git remote set-url origin https://github.com/ahmedbelalnour/CarND-Capstone.git
+git status
+
