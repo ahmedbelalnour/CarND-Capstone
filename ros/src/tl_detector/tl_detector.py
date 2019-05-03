@@ -10,6 +10,7 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+from scipy.spatial import KDTree
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -20,6 +21,8 @@ class TLDetector(object):
         self.pose = None
         self.waypoints = None
         self.camera_image = None
+	self.waypoints_2d = None
+	self.waypoint_tree = None
         self.lights = []
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -56,6 +59,9 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
+	if not self.waypoints_2d:
+		self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
+		self.waypoint_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -100,8 +106,8 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        index = self.waypoint_tree.query([pose.position.x,pose.position.y], 1)[1]
+        return index
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -132,18 +138,31 @@ class TLDetector(object):
 
         """
         light = None
+	light_wp = None
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
-
-        #TODO find the closest visible traffic light (if one exists)
+	    diff = len(self.waypoints.waypoints)
+	    for i, a_light in enumerate(self.lights):
+		#Get stop line waypoint index
+		line = stop_line_positions[i]
+		wp_idx = self.waypoint_tree.query([line[0],line[1]], 1)[1]
+		#Find closest stop line waypoint index
+		dist = wp_idx - car_position
+		if dist>=0 and dist < diff:
+			diff = dist
+			light = a_light
+			light_wp = wp_idx
+            if diff > 100:
+		return -1, TrafficLight.UNKNOWN
 
         if light:
             state = self.get_light_state(light)
+	    print("a light is detected in loc ", light_wp, " and the state is ", state)
             return light_wp, state
-        self.waypoints = None
+        
         return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
