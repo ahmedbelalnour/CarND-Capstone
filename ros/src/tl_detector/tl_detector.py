@@ -20,7 +20,7 @@ class TLDetector(object):
 
         self.pose = None
         self.waypoints = None
-        self.camera_image = None
+        self.image = None
 	self.waypoints_2d = None
 	self.waypoint_tree = None
         self.lights = []
@@ -75,7 +75,7 @@ class TLDetector(object):
 
         """
         self.has_image = True
-        self.camera_image = msg
+        self.image = msg
         light_wp, state = self.process_traffic_lights()
 
         '''
@@ -123,9 +123,7 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        #Get classification
+        cv_image = self.bridge.imgmsg_to_cv2(self.image, "bgr8")
         return self.light_classifier.get_classification(cv_image)
 
     def process_traffic_lights(self):
@@ -140,21 +138,20 @@ class TLDetector(object):
         light = None
 	light_wp = None
 
-        # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 	    diff = len(self.waypoints.waypoints)
 	    for i, a_light in enumerate(self.lights):
-		#Get stop line waypoint index
+
 		line = stop_line_positions[i]
-		wp_idx = self.waypoint_tree.query([line[0],line[1]], 1)[1]
-		#Find closest stop line waypoint index
-		dist = wp_idx - car_position
+		wp = self.waypoint_tree.query([line[0],line[1]], 1)[1]
+
+		dist = wp - car_position
 		if dist>=0 and dist < diff:
 			diff = dist
 			light = a_light
-			light_wp = wp_idx
+			light_wp = wp
             if diff > 100:
 		return -1, TrafficLight.UNKNOWN
 
